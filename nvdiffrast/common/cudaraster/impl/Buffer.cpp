@@ -9,6 +9,11 @@
 #include "../../framework.h"
 #include "Buffer.hpp"
 
+#include <torch/torch.h>
+#include <torch/extension.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/ThrustAllocator.h>
+
 using namespace CR;
 
 //------------------------------------------------------------------------
@@ -24,8 +29,12 @@ Buffer::Buffer(void)
 
 Buffer::~Buffer(void)
 {
-    if (m_gpuPtr)
-        cudaFree(m_gpuPtr); // Don't throw an exception.
+    if (m_gpuPtr) {
+        // cudaFree(m_gpuPtr); // Don't throw an exception.
+        auto allocator = c10::cuda::CUDACachingAllocator::get();
+        allocator->raw_delete(m_gpuPtr);
+    }
+
 }
 
 void Buffer::reset(size_t bytes)
@@ -35,12 +44,17 @@ void Buffer::reset(size_t bytes)
 
     if (m_gpuPtr)
     {
-        NVDR_CHECK_CUDA_ERROR(cudaFree(m_gpuPtr));
+        // NVDR_CHECK_CUDA_ERROR(cudaFree(m_gpuPtr));
+        auto allocator = c10::cuda::CUDACachingAllocator::get();
+        allocator->raw_delete(m_gpuPtr);
         m_gpuPtr = NULL;
     }
 
-    if (bytes > 0)
-        NVDR_CHECK_CUDA_ERROR(cudaMalloc(&m_gpuPtr, bytes));
+    if (bytes > 0) {
+        // NVDR_CHECK_CUDA_ERROR(cudaMalloc(&m_gpuPtr, bytes));
+        auto allocator = c10::cuda::CUDACachingAllocator::get();
+        m_gpuPtr = allocator->raw_alloc(bytes);
+    }
 
     m_bytes = bytes;
 }
