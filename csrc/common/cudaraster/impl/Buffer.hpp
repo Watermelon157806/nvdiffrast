@@ -29,6 +29,7 @@ public:
 private:
     void*           m_gpuPtr;
     size_t          m_bytes;
+    int             m_gpuDevice;
 };
 
 //------------------------------------------------------------------------

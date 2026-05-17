@@ -13,6 +13,8 @@
 #include <torch/extension.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/ThrustAllocator.h>
+#include <c10/cuda/CUDAGuard.h>
+#include <c10/cuda/CUDACachingAllocator.h>
 
 using namespace CR;
 
@@ -22,7 +24,8 @@ using namespace CR;
 
 Buffer::Buffer(void)
 :   m_gpuPtr(NULL),
-    m_bytes (0)
+    m_bytes (0),
+    m_gpuDevice(-1)
 {
     // empty
 }
@@ -31,6 +34,9 @@ Buffer::~Buffer(void)
 {
     if (m_gpuPtr) {
         // cudaFree(m_gpuPtr); // Don't throw an exception.
+        c10::cuda::OptionalCUDAGuard device_guard;
+        if (m_gpuDevice >= 0)
+            device_guard.set_device(c10::Device(c10::kCUDA, m_gpuDevice));
         auto allocator = c10::cuda::CUDACachingAllocator::get();
         allocator->raw_delete(m_gpuPtr);
     }
@@ -45,13 +51,19 @@ void Buffer::reset(size_t bytes)
     if (m_gpuPtr)
     {
         // NVDR_CHECK_CUDA_ERROR(cudaFree(m_gpuPtr));
+        c10::cuda::OptionalCUDAGuard device_guard;
+        if (m_gpuDevice >= 0)
+            device_guard.set_device(c10::Device(c10::kCUDA, m_gpuDevice));
         auto allocator = c10::cuda::CUDACachingAllocator::get();
         allocator->raw_delete(m_gpuPtr);
         m_gpuPtr = NULL;
+        m_gpuDevice = -1;
     }
 
     if (bytes > 0) {
         // NVDR_CHECK_CUDA_ERROR(cudaMalloc(&m_gpuPtr, bytes));
+        m_gpuDevice = at::cuda::current_device();
+        c10::cuda::CUDAGuard device_guard(c10::Device(c10::kCUDA, m_gpuDevice));
         auto allocator = c10::cuda::CUDACachingAllocator::get();
         m_gpuPtr = allocator->raw_alloc(bytes);
     }

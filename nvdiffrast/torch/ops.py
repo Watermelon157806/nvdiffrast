@@ -52,18 +52,18 @@ class RasterizeCudaContext:
         destroyed.
 
         Args:
-          device (Optional): Cuda device on which the context is created. Type can be
-                             `torch.device`, string (e.g., `'cuda:1'`), or int. If not
-                             specified, context will be created on currently active Cuda
-                             device.
+          device: Cuda device on which the context is created. Type can be
+                  `torch.device`, string (e.g., `'cuda:1'`), or int.
         Returns:
           The newly created Cuda rasterizer context.
         '''
-        if device is None:
-            cuda_device_idx = torch.cuda.current_device()
+        assert device is not None, "RasterizeCudaContext requires an explicit CUDA device"
+        if isinstance(device, int):
+            device = torch.device("cuda", device)
         else:
-            with torch.cuda.device(device):
-                cuda_device_idx = torch.cuda.current_device()
+            device = torch.device(device)
+        assert device.type == "cuda" and device.index is not None, device
+        cuda_device_idx = device.index
         self.cpp_wrapper = _nvdiffrast_c.RasterizeCRStateWrapper(cuda_device_idx)
         self.active_depth_peeler = None
 
